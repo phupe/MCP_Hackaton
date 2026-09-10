@@ -1,0 +1,17 @@
+{
+  "name": "curie-mcp-hackathon",
+  "owner": {
+    "name": "Institut Curie / RIKEN MCP Hackathon",
+    "email": "eliott.jacopin@riken.jp",
+    "url": "https://github.com/sysbio-curie/MCP_Hackaton"
+  },
+  "plugins": [
+    {
+      "name": "curie-mcp-kit",
+      "source": "./",
+      "description": "Demo MCP servers for cancer systems biology plus skills for writing your own with the MCP Python SDK v2.",
+      "category": "life-sciences",
+      "tags": ["mcp", "cancer", "systems-biology", "teaching"]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "curie-mcp-kit",
+  "displayName": "Curie MCP Kit",
+  "version": "0.1.0",
+  "description": "Teaching kit for the Institut Curie MCP hackathon: runnable demo MCP servers for cancer systems biology, plus skills for writing your own with the MCP Python SDK v2.",
+  "author": {
+    "name": "Laurence Calzone and Eliott Jacopin",
+    "email": "eliott.jacopin@riken.jp"
+  },
+  "keywords": ["mcp", "cancer", "systems-biology", "bioinformatics", "teaching"],
+  "mcpServers": "./.mcp.json"
+}

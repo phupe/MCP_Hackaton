@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# uv: uv.lock IS committed, so the tests in docs/setup.md keep passing for everyone
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# Participant scratch space (see docs/hackathon-day2.md)
+scratch/

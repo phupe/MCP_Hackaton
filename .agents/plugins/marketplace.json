@@ -1,0 +1,20 @@
+{
+  "name": "curie-mcp-hackathon",
+  "interface": {
+    "displayName": "Curie MCP Hackathon"
+  },
+  "plugins": [
+    {
+      "name": "curie-mcp-kit",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "NONE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
