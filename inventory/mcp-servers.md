@@ -138,14 +138,26 @@ ClinicalTrials), prefer the marketplace one: the provider or a funded partner ma
 
 ## Gaps worth building
 
-Nothing in the lists above covers, as far as we know:
+Checked against GitHub, the MCP registries and mcp.so/glama.ai in September 2026. Three status
+terms recur below: **confirmed gap** (no server of any kind found), **still open** (a server
+exists but does not close the gap, because it reads cached files instead of the live API, or has
+no real users), and **not a gap** (usable coverage exists).
 
-- **cBioPortal** as a first-class MCP server (BioMCP analyses *downloaded* cBioPortal-style data;
-  it is not a live cBioPortal client).
-- **COSMIC**, **MSigDB / GSEA**, **DepMap**, **CellMinerCDB**.
-- **OmniPath / pypath** directly — NeKo reaches it, but there is no general OmniPath server.
-- **CellNOptTools**, **CoLoMoTo notebook**, **GINsim**, **BoolNet** — the Boolean-modelling
-  ecosystem beyond MaBoSS.
+- **cBioPortal** as a live client is still open. The official
+  [`cbioportal-mcp`](https://github.com/cBioPortal/cbioportal-mcp) queries a ClickHouse mirror,
+  not the live REST API; an unofficial server that does hit the live API exists
+  ([pickleton89/cbioportal-mcp](https://github.com/pickleton89/cbioportal-mcp), 6★) but has no
+  adoption to speak of. BioMCP separately analyses *downloaded* cBioPortal-style data.
+- **COSMIC**, **CellMinerCDB**: confirmed gaps.
+- **MSigDB / GSEA**: confirmed gap, save for
+  [montilab/SigRepo_Server](https://github.com/montilab/SigRepo_Server) (0★), which treats
+  MSigDB as one of several signature backends rather than a dedicated target.
+- **DepMap**: still open. An unofficial server exists
+  ([saurabhsing21/deepmap-mcp](https://github.com/saurabhsing21/deepmap-mcp), 1★), but like the
+  cBioPortal case above it reads a locally-downloaded CRISPR-screen CSV cache, not the live API.
+- **OmniPath / pypath** directly: NeKo reaches it, but there is no general OmniPath server.
+- **CellNOptTools**, **CoLoMoTo notebook**, **GINsim**, **BoolNet**: the Boolean-modelling
+  ecosystem beyond MaBoSS. Confirmed gaps, all four.
 - Anything institutional: a lab's own cohort, LIMS, image store or pipeline outputs.
 
 That last category is the one where a hackathon group has an unfair advantage: you have the data

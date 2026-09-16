@@ -34,21 +34,21 @@ Partly covered already — NeKo, MaBoSS and PhysiCell have servers (see
 | [CoLoMoTo notebook](https://colomoto.github.io) | Docker, Python | the whole logical-modelling toolchain in one place |
 | [bioLQM](https://colomoto.github.io/biolqm/) | Java/Python | conversion between logical model formats |
 | [CellCollective](https://cellcollective.org) | REST | a library of published logical models |
-| [PhysiCell Studio](https://github.com/PhysiCell-Tools/PhysiCell-Studio) | Python GUI | agent-based model configuration beyond the existing server |
+| [PhysiCell Studio](https://github.com/PhysiCell-Tools/PhysiCell-Studio) | Python GUI | agent-based model configuration beyond the existing server. A dedicated attempt existed ([zacsims/PhysiCell-MCP](https://github.com/zacsims/PhysiCell-MCP)), but as of September 2026 its repo returns 404 |
 | [OmniPath / pypath](https://omnipathdb.org) | REST + Python | prior-knowledge networks; NeKo reaches it, nothing exposes it directly |
 | [CellNOpt](https://saezlab.github.io/CellNOptR/) | R | fitting logical models to perturbation data |
-| [decoupleR](https://saezlab.github.io/decoupleR/) | R + Python | pathway and TF activity inference |
+| [decoupleR](https://saezlab.github.io/decoupleR/) | R + Python | not a gap: an unofficial server exists, [scmcphub/decoupler-mcp](https://github.com/scmcphub/decoupler-mcp) (4★, also on PyPI) |
 | SBML / SBML-qual | file format | model exchange, validation, round-tripping |
 
 ## Cancer genomics and clinical data
 
 | Resource | Interface | Notes |
 | --- | --- | --- |
-| [cBioPortal](https://www.cbioportal.org) | well-documented REST API | the obvious gap. BioMCP analyses downloaded cBioPortal-style files but is not a live client |
-| [COSMIC](https://cancer.sanger.ac.uk/cosmic) | REST, downloads | licence terms need checking before anything is published |
-| [DepMap](https://depmap.org) | downloads, API | dependency and CRISPR screens; a natural fit for target prioritisation |
-| [GDC / TCGA](https://portal.gdc.cancer.gov) | REST | large, well-specified, genuinely useful |
-| [ICGC ARGO](https://www.icgc-argo.org) | REST | international cohorts |
+| [cBioPortal](https://www.cbioportal.org) | well-documented REST API | still open as a live client. Official [`cbioportal-mcp`](https://github.com/cBioPortal/cbioportal-mcp) queries a ClickHouse mirror, not the live API; an unofficial server that does hit the live API exists ([pickleton89/cbioportal-mcp](https://github.com/pickleton89/cbioportal-mcp), 6★) with no adoption to speak of. BioMCP analyses downloaded cBioPortal-style files, not a live client |
+| [COSMIC](https://cancer.sanger.ac.uk/cosmic) | REST, downloads | licence terms need checking before anything is published. Confirmed gap: no MCP server of any kind found |
+| [DepMap](https://depmap.org) | downloads, API | dependency and CRISPR screens; a natural fit for target prioritisation. Still open: an unofficial server exists ([saurabhsing21/deepmap-mcp](https://github.com/saurabhsing21/deepmap-mcp), 1★) but reads a locally-cached CSV dump, not the live API |
+| [GDC / TCGA](https://portal.gdc.cancer.gov) | REST | large, well-specified, genuinely useful. Still open: a third-party server exists ([pipeworx-io/mcp-gdc](https://github.com/pipeworx-io/mcp-gdc)) but has 0★ and appears unmaintained |
+| [ICGC ARGO](https://www.icgc-argo.org) | REST | international cohorts. Confirmed gap: no MCP server found (an unrelated CI/CD tool also named "Argo" has its own MCP servers, not to be confused with this platform) |
 | [OncoKB](https://www.oncokb.org) | REST, token required | reached through BioMCP; licence-gated |
 | [CIViC](https://civicdb.org) | REST | clinical interpretation of variants, openly licensed |
 | [ClinVar](https://www.ncbi.nlm.nih.gov/clinvar/) | E-utilities | reached through BioMCP |
@@ -58,12 +58,12 @@ Partly covered already — NeKo, MaBoSS and PhysiCell have servers (see
 
 | Resource | Interface | Notes |
 | --- | --- | --- |
-| [MSigDB / GSEA](https://www.gsea-msigdb.org) | downloads, REST | signature retrieval and enrichment; a strong small project |
-| [Reactome](https://reactome.org) | REST | third-party server exists; an official one does not |
-| [WikiPathways](https://www.wikipathways.org) | REST | openly licensed pathway content |
-| [g:Profiler](https://biit.cs.ut.ee/gprofiler/) | REST | reached through BioMCP |
-| [Enrichr](https://maayanlab.cloud/Enrichr/) | REST | simple API, immediate payoff |
-| [SIGNOR](https://signor.uniroma2.it) | REST | causal interactions, directly useful for Boolean models |
+| [MSigDB / GSEA](https://www.gsea-msigdb.org) | downloads, REST | signature retrieval and enrichment; a strong small project. Confirmed gap, save for [montilab/SigRepo_Server](https://github.com/montilab/SigRepo_Server) (0★), which treats MSigDB as one of several backends rather than a dedicated target |
+| [Reactome](https://reactome.org) | REST | a third-party server exists ([Augmented-Nature/Reactome-MCP-Server](https://github.com/Augmented-Nature/Reactome-MCP-Server), 12★, labelled "unofficial"). As of 2026-09-16, an official server also exists: [reactome/reactome-mcp](https://github.com/reactome/reactome-mcp) (6★), whose own README describes it as a prototype |
+| [WikiPathways](https://www.wikipathways.org) | REST | openly licensed pathway content. Still open: a third-party server exists ([pipeworx-io/mcp-wikipathways](https://github.com/pipeworx-io/mcp-wikipathways)) but has 0★ |
+| [g:Profiler](https://biit.cs.ut.ee/gprofiler/) | REST | reached through BioMCP (`biomcp enrich`); a dedicated third-party server also exists ([QuentinCody/gprofiler-mcp-server](https://github.com/QuentinCody/gprofiler-mcp-server), 0★) |
+| [Enrichr](https://maayanlab.cloud/Enrichr/) | REST | not a gap: an unofficial server exists, [tianqitang1/enrichr-mcp-server](https://github.com/tianqitang1/enrichr-mcp-server) (15★, npm-installable). No official Ma'ayan Lab server |
+| [SIGNOR](https://signor.uniroma2.it) | REST | causal interactions, directly useful for Boolean models. Confirmed gap: no MCP server found. A rumoured "NeKo MCP server for SIGNOR" could not be verified and is probably spurious |
 
 ## Your own institute
 
