@@ -24,7 +24,7 @@ uv --version
 
 If your institute manages your Python through conda or a module system and you would rather not
 add uv, everything here also works with `pip install "mcp[cli]"` in a virtual environment on
-Python 3.10+. The pattern READMEs give the `uv` command because it is one line and needs no
+Python 3.10+. The plugin READMEs give the `uv` command because it is one line and needs no
 pre-existing environment; substitute your own if you prefer.
 
 ## 2. An LLM agent
@@ -56,16 +56,16 @@ uv sync
 uv run pytest
 ```
 
-32 tests should pass. Then look at a server by hand:
+18 tests should pass. Then look at a server by hand:
 
 ```bash
-cd patterns/01-hello-server
-uv run --with "mcp[cli]" mcp dev hello_server.py
+cd plugins/demo-tools
+uv run --with "mcp[cli]" mcp dev tools_server.py
 ```
 
 This opens the **MCP Inspector** in your browser: a client that shows you a server's tools,
-resources and prompts, and lets you call them. Go to the **Tools** tab and call `gene_role` with
-`KRAS`. If you see `oncogene`, your environment is ready.
+resources and prompts, and lets you call them. Go to the **Tools** tab and call `add` with
+`a=2, b=3`. If you see `5`, your environment is ready.
 
 Finally, install the demo plugins into your own agent — the instructions are in the
 [README](../README.md#install-the-demo-plugins) — or check that every plugin's server starts

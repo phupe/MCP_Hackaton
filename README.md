@@ -15,14 +15,13 @@ agents, MCP or software engineering at large is assumed.
 | If you want to… | Go to |
 | --- | --- |
 | get your laptop ready before the event | [`docs/setup.md`](docs/setup.md) |
-| learn how to write an MCP server | [`patterns/`](patterns/) |
+| learn how to write an MCP server | [`plugins/`](plugins/) (each `plugins/demo-*/` is a one-feature server with its own README) and the [authoring skill](plugins/demo-skill/skills/authoring-an-mcp-server/SKILL.md) |
 | see what already exists before you build | [`inventory/`](inventory/) |
 | install the demo plugins into your own agent | [below](#install-the-demo-plugins) |
 
 ## What is in this repository
 
 ```
-patterns/           standalone MCP servers, one idea each, all tested   <- the teaching material
 inventory/          what already exists: servers, skills, and the gaps
 plugins/            six installable plugins: one skill, five one-feature MCP servers
 tests/              structural checks that every plugin's manifests agree with each other
@@ -153,7 +152,7 @@ covers the rest.
 
 ```bash
 uv sync
-uv run pytest                          # patterns/, plugins/ and tests/
+uv run pytest                          # plugins/ and tests/
 uv run python scripts/check_servers.py # launches every plugin's server over stdio
 ```
 

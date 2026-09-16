@@ -2,7 +2,7 @@
 name: authoring-an-mcp-server
 description: Write, review or debug an MCP server in Python using the MCP Python SDK v2 (mcp>=2.1, protocol revision 2026-07-28). Use when the user wants to expose a database, analysis script, simulation, CLI tool or Python library to an LLM agent as MCP tools, resources or prompts; when they ask how to start an MCP server, what MCPServer is, or why their tool is not being called correctly; and when migrating a v1 FastMCP server to v2. Written for cancer systems-biology and bioinformatics work.
 license: MIT
-compatibility: Requires Python 3.10+ and uv (or pip). No network access needed for the offline patterns.
+compatibility: Requires Python 3.10+ and uv (or pip). No network access needed for the offline demos.
 metadata:
   author: sysbio-curie
   version: "0.1.0"
@@ -125,12 +125,14 @@ Inspect it by hand with `uv run --with "mcp[cli]" mcp dev my_server.py`.
 
 ## Working examples
 
-[`patterns/`](https://github.com/sysbio-curie/MCP_Hackaton/tree/main/patterns) has standalone,
-tested servers. Read them in order:
+[`plugins/`](https://github.com/sysbio-curie/MCP_Hackaton/tree/main/plugins) has five
+one-feature, tested servers, each with its own README:
 
-- `patterns/01-hello-server` — the minimum, and the in-memory test client.
-- `patterns/02-tool-contract` — the checklist above, applied.
-- `patterns/03-resources-and-prompts` — the two non-tool primitives.
+- `plugins/demo-tools` — tools and the `ToolError` contract, applied.
+- `plugins/demo-progress` — a tool that reports progress mid-call.
+- `plugins/demo-elicitation` — a tool that asks the user something via a `Resolve` resolver.
+- `plugins/demo-prompt` — a prompt with no tools.
+- `plugins/demo-resource` — a resource and resource template with no tools.
 
 ## More detail
 
