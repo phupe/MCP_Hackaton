@@ -17,86 +17,121 @@ agents, MCP or software engineering at large is assumed.
 | get your laptop ready before the event | [`docs/setup.md`](docs/setup.md) |
 | learn how to write an MCP server | [`patterns/`](patterns/) |
 | see what already exists before you build | [`inventory/`](inventory/) |
-| install the demo servers into your own agent | [below](#install-the-demo-servers) |
+| install the demo plugins into your own agent | [below](#install-the-demo-plugins) |
 
 ## What is in this repository
 
 ```
-patterns/     standalone MCP servers, one idea each, all tested        <- the teaching material
-inventory/    what already exists: servers, skills, and the gaps
-skills/       Agent Skills, shipped as part of the plugin
-docs/         setup and background
-scripts/      check_plugin.py — verifies the plugin config actually launches
+patterns/           standalone MCP servers, one idea each, all tested   <- the teaching material
+inventory/          what already exists: servers, skills, and the gaps
+plugins/            six installable plugins: one skill, five one-feature MCP servers
+tests/              structural checks that every plugin's manifests agree with each other
+docs/               setup and background
+scripts/            check_servers.py — launches every plugin's server over stdio
+plugin.spec.json    the plugin decisions; input to the manifest generator
 ```
 
-The repository is also an **installable plugin**, in three formats, so the demo servers work in
-whatever agent you already use.
+The repository is also a **marketplace** of six sibling plugins, each with its own manifests, so
+the demo servers and skill work in whatever agent you already use.
 
-## Install the demo servers
+## Install the demo plugins
 
-Three MCP servers ship with the plugin, all offline and instant — no API keys, no network:
+Six plugins ship in this repository, all offline and instant — no API keys, no network:
 
-| Server | What it exposes |
-| --- | --- |
-| `curie-gene-roles` | one tool: oncogene or tumour suppressor, over a five-gene panel |
-| `curie-toy-cohort` | mutation frequencies and gene ranking over a toy three-tumour-type cohort |
-| `curie-model-library` | two Boolean signalling models as **resources**, plus two **prompts** |
+| Plugin | What it shows | Try this |
+| --- | --- | --- |
+| [`demo-skill`](plugins/demo-skill/) | the Agent Skills syntax: one skill, `authoring-an-mcp-server` | "Help me write an MCP server for my own analysis." |
+| [`demo-tools`](plugins/demo-tools/README.md) | tools `add`, `subtract`, `multiply`, `divide`; divide by zero raises `ToolError` so the model gets a readable error result | "Use demo-tools to divide 10 by 4, then divide 1 by 0." |
+| [`demo-progress`](plugins/demo-progress/README.md) | tool `count_to` (10 one-second steps by default) with `ctx.report_progress` each step | "Use demo-progress to count to 10." |
+| [`demo-elicitation`](plugins/demo-elicitation/README.md) | tool `greet` that asks the user their name via a `Resolve`/`Elicit` resolver; accept/decline/cancel; hosts without form elicitation get an MCP error | "Use demo-elicitation to greet me." |
+| [`demo-prompt`](plugins/demo-prompt/README.md) | no tools, one prompt `summarise_gene(gene)`; in Claude Code it appears as `/demo-prompt:summarise_gene` | run the prompt for TP53 |
+| [`demo-resource`](plugins/demo-resource/README.md) | no tools, resource `genes://panel` (JSON) and template `genes://panel/{symbol}`; in Claude Code it appears under `@` | "Read the resource genes://panel/KRAS from demo-resource." |
+
+Each plugin directory has its own README with more detail; the table above links to them.
 
 ### Claude Code
 
 ```bash
-/plugin marketplace add sysbio-curie/MCP_Hackaton
-/plugin install curie-mcp-kit@curie-mcp-hackathon
+claude plugin marketplace add sysbio-curie/MCP_Hackaton
+claude plugin install demo-tools@sysbio-curie
 ```
 
-### Codex, or any agent reading the open Agent Plugins format
+or, inside a session:
 
-Clone the repository and point your agent at it as a local plugin; the root
-[`plugin.json`](plugin.json) and [`mcp.json`](mcp.json) conform to
-[Agent Plugins 1.1.0](https://agent-plugins.org/specification).
+```
+/plugin marketplace add sysbio-curie/MCP_Hackaton
+/plugin install demo-tools@sysbio-curie
+```
+
+Install several by repeating the install line, e.g. `claude plugin install demo-progress@sysbio-curie`.
+Run `claude plugin list`, or `/mcp` inside a session, to check that a server connected.
+
+From a local clone, load one plugin without installing it:
+
+```bash
+claude --plugin-dir plugins/demo-tools
+```
+
+### Codex
+
+Unverified — the manifests are written to the published spec but have not been exercised with a
+live Codex client:
+
+```bash
+codex plugin marketplace add sysbio-curie/MCP_Hackaton
+codex plugin add demo-tools@sysbio-curie
+```
+
+### Agent Plugins 1.0 clients (Cursor, GitHub Copilot in VS Code, Kiro)
+
+Unverified. The [Agent Plugins 1.0](https://agent-plugins.org/specification) spec defines the
+package — each `plugins/<name>/` directory is one — but installation is each client's own. In
+VS Code: Command Palette → "Chat: Install Plugin from Source", then point it at the plugin
+directory or at the repository.
 
 ### Any other MCP host
 
-Copy an entry out of [`mcp.json`](mcp.json) into your host's configuration and replace
-`${PLUGIN_ROOT}` with the path where you cloned this repository. For example:
+Copy the server entry out of `plugins/<name>/mcp.json` and replace `${PLUGIN_ROOT}` with the
+absolute path of that plugin directory. For example, `demo-tools`:
 
 ```json
 {
   "mcpServers": {
-    "curie-toy-cohort": {
+    "demo-tools": {
       "command": "uv",
-      "args": ["run", "--quiet", "--with", "mcp>=2.1,<3",
-               "python", "/path/to/MCP_Hackaton/patterns/02-tool-contract/cohort_server.py"]
+      "args": ["run", "--no-project", "--quiet", "--with", "mcp>=2.1,<3",
+               "python", "/path/to/MCP_Hackaton/plugins/demo-tools/tools_server.py"]
     }
   }
 }
 ```
 
-`uv run --with` builds the environment on first launch, so there is nothing to install first.
-
-Verify that all three start correctly:
-
-```bash
-PLUGIN_ROOT="$PWD" uv run python scripts/check_plugin.py
-```
+`uv run --with` builds the environment on first launch, so there is nothing to install first, and
+because the server is the code in the tree — not a published package — editing it changes what
+the plugin does.
 
 ## Plugin formats
 
-One repository, three manifests, because the ecosystem has not converged:
+One repository, one marketplace, six sibling plugins under `plugins/`, each self-contained with
+its own manifests for every ecosystem, because the ecosystem has not converged:
 
 | Format | Manifest | MCP config | Marketplace |
 | --- | --- | --- | --- |
-| [Agent Plugins 1.1.0](https://agent-plugins.org/specification) | `plugin.json` | `mcp.json` | `.agents/plugins/marketplace.json` |
-| Claude Code | `.claude-plugin/plugin.json` | `.mcp.json` | `.claude-plugin/marketplace.json` |
-| Codex | `.codex-plugin/plugin.json` | `mcp.json` | `.agents/plugins/marketplace.json` |
+| [Agent Plugins 1.0](https://agent-plugins.org/specification) | `plugins/<name>/plugin.json` | `plugins/<name>/mcp.json` | `.agents/plugins/marketplace.json` |
+| Claude Code | `plugins/<name>/.claude-plugin/plugin.json` | `plugins/<name>/.claude-plugin/mcp.json` | `.claude-plugin/marketplace.json` |
+| Codex | `plugins/<name>/plugin.json` (with Codex extras under `extensions["com.openai"]`) | `plugins/<name>/mcp.json` | `.agents/plugins/marketplace.json` |
 
-They coexist without conflict: the filenames differ, and `skills/` is shared because all three
-consume the same [Agent Skills](https://agentskills.io/specification) format. The only real
-difference is the placeholder for the plugin's own directory — `${PLUGIN_ROOT}` in the open
-format, `${CLAUDE_PLUGIN_ROOT}` in Claude Code.
+There is no `.codex-plugin/` folder — Codex reads the same `plugin.json` and `mcp.json` as the
+open Agent Plugins format — and no root `.mcp.json`: Claude Code would read a root `.mcp.json` as
+project configuration and never expand the placeholder. The only real difference between the two
+MCP configs is the placeholder for the plugin's own directory — `${PLUGIN_ROOT}` in the open
+format and Codex's, `${CLAUDE_PLUGIN_ROOT}` in Claude Code's.
 
-`plugin.json` and `mcp.json` are validated against the official Agent Plugins 1.1.0 JSON
-Schemas.
+Install strings have the shape `<plugin>@sysbio-curie`, e.g. `demo-tools@sysbio-curie`.
+
+**Verification status:** the Claude Code install path has been verified on the maintainer's
+machine. The Codex and Agent Plugins 1.0 manifests are written to their published specs but have
+not been exercised with a live client.
 
 ## Which SDK version
 
@@ -111,15 +146,25 @@ from mcp.server import MCPServer
 Two consequences worth knowing before you start: `resource.uri` is a plain `str` rather than an
 `AnyUrl`, and there are no server-initiated requests, so `ctx.elicit()` only works on legacy
 connections — use a `Resolve(...)` resolver instead. The
-[cheat sheet](skills/authoring-an-mcp-server/references/sdk-v2-cheatsheet.md) covers the rest.
+[cheat sheet](plugins/demo-skill/skills/authoring-an-mcp-server/references/sdk-v2-cheatsheet.md)
+covers the rest.
 
 ## Development
 
 ```bash
 uv sync
-uv run pytest                                              # every pattern
-PLUGIN_ROOT="$PWD" uv run python scripts/check_plugin.py    # every plugin server
+uv run pytest                          # patterns/, plugins/ and tests/
+uv run python scripts/check_servers.py # launches every plugin's server over stdio
 ```
+
+`tests/test_plugin_structure.py` is the structural checker from the spawning-agent-plugins skill:
+it guards against drift such as a version mismatch between a plugin's manifests, a plugin missing
+from the marketplace, or a root `.mcp.json` reappearing.
+
+To regenerate the manifests after editing `plugin.spec.json`, use the spawning-agent-plugins
+skill's generator. Two files are hand-edited after generation and a regeneration reports them as
+`kept`, which is expected: the `${PLUGIN_ROOT}` placeholder in each `plugins/*/mcp.json`, and the
+relative-path `source` strings in `.claude-plugin/marketplace.json`.
 
 ## Licence
 

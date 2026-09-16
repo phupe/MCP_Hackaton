@@ -56,7 +56,7 @@ uv sync
 uv run pytest
 ```
 
-Fourteen tests should pass. Then look at a server by hand:
+32 tests should pass. Then look at a server by hand:
 
 ```bash
 cd patterns/01-hello-server
@@ -67,11 +67,12 @@ This opens the **MCP Inspector** in your browser: a client that shows you a serv
 resources and prompts, and lets you call them. Go to the **Tools** tab and call `gene_role` with
 `KRAS`. If you see `oncogene`, your environment is ready.
 
-Finally, install the demo servers into your own agent — the instructions are in the
-[README](../README.md#install-the-demo-servers) — and check that all three start:
+Finally, install the demo plugins into your own agent — the instructions are in the
+[README](../README.md#install-the-demo-plugins) — or check that every plugin's server starts
+without installing anything:
 
 ```bash
-PLUGIN_ROOT="$PWD" uv run python scripts/check_plugin.py
+uv run python scripts/check_servers.py
 ```
 
 ## 4. Bring a question

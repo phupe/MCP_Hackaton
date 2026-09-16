@@ -1,17 +1,40 @@
 {
-  "name": "curie-mcp-hackathon",
+  "name": "sysbio-curie",
+  "description": "Plugins from the sysbio-curie organisation: the MCP hackathon demo plugins (one skill, five one-feature MCP servers) and, later, real servers for cancer systems biology.",
   "owner": {
-    "name": "Institut Curie / RIKEN MCP Hackathon",
-    "email": "eliott.jacopin@riken.jp",
-    "url": "https://github.com/sysbio-curie/MCP_Hackaton"
+    "name": "Laurence Calzone and Eliott Jacopin",
+    "email": "eliott.jacopin@riken.jp"
   },
   "plugins": [
     {
-      "name": "curie-mcp-kit",
-      "source": "./",
-      "description": "Demo MCP servers for cancer systems biology plus skills for writing your own with the MCP Python SDK v2.",
-      "category": "life-sciences",
-      "tags": ["mcp", "cancer", "systems-biology", "teaching"]
+      "name": "demo-skill",
+      "source": "./plugins/demo-skill",
+      "description": "A skill, to see the Agent Skills syntax once: authoring-an-mcp-server, a guide to writing an MCP server with the MCP Python SDK v2."
+    },
+    {
+      "name": "demo-tools",
+      "source": "./plugins/demo-tools",
+      "description": "Four arithmetic tools (add, subtract, multiply, divide); divide by zero shows how a tool raises an error the model can read."
+    },
+    {
+      "name": "demo-progress",
+      "source": "./plugins/demo-progress",
+      "description": "One slow tool, count_to, that reports progress after each one-second step."
+    },
+    {
+      "name": "demo-elicitation",
+      "source": "./plugins/demo-elicitation",
+      "description": "One tool, greet, that asks the user for their name before answering (elicitation via a Resolve resolver)."
+    },
+    {
+      "name": "demo-prompt",
+      "source": "./plugins/demo-prompt",
+      "description": "No tools; one prompt, summarise_gene, to see how a prompt appears in the host's menu."
+    },
+    {
+      "name": "demo-resource",
+      "source": "./plugins/demo-resource",
+      "description": "No tools; one resource (genes://panel) and one resource template (genes://panel/{symbol})."
     }
   ]
 }

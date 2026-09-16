@@ -13,9 +13,10 @@ metadata:
 ## Before writing any code, check whether it already exists
 
 Someone has probably already wrapped the database. Read
-[`inventory/README.md`](../../inventory/README.md) first: it lists the MCP servers that already
-cover UniProt, ChEMBL, Ensembl, KEGG, Reactome, STRING, PubMed, ClinicalTrials.gov, Open Targets,
-AlphaFold, the PDB, MaBoSS, NeKo and PhysiCell/PhysiBoSS.
+[`inventory/README.md`](https://github.com/sysbio-curie/MCP_Hackaton/blob/main/inventory/README.md)
+first: it lists the MCP servers that already cover UniProt, ChEMBL, Ensembl, KEGG, Reactome,
+STRING, PubMed, ClinicalTrials.gov, Open Targets, AlphaFold, the PDB, MaBoSS, NeKo and
+PhysiCell/PhysiBoSS.
 
 Build a new server when the thing you want to expose is **yours**: your analysis, your pipeline,
 your lab's data, your model. That is also the most valuable kind to build.
@@ -124,7 +125,8 @@ Inspect it by hand with `uv run --with "mcp[cli]" mcp dev my_server.py`.
 
 ## Working examples
 
-[`patterns/`](../../patterns/) has standalone, tested servers. Read them in order:
+[`patterns/`](https://github.com/sysbio-curie/MCP_Hackaton/tree/main/patterns) has standalone,
+tested servers. Read them in order:
 
 - `patterns/01-hello-server` — the minimum, and the in-memory test client.
 - `patterns/02-tool-contract` — the checklist above, applied.

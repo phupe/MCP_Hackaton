@@ -27,9 +27,10 @@ in YAML frontmatter are the only required fields, plus optional `scripts/`, `ref
 `assets/` directories. An agent loads only the `name` and `description` at startup and pulls in
 the body when the task calls for it, so a skill costs almost nothing until it is relevant.
 
-This repo ships one: [`skills/authoring-an-mcp-server/`](../skills/authoring-an-mcp-server/).
-Read it as a worked example of the format — it is what you will write on Day 2 alongside your
-server.
+This repo ships one:
+[`plugins/demo-skill/skills/authoring-an-mcp-server/`](../plugins/demo-skill/skills/authoring-an-mcp-server/),
+which ships as the `demo-skill` plugin. Read it as a worked example of the format — it is what
+you will write on Day 2 alongside your server.
 
 ## Collections
 

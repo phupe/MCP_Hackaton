@@ -22,7 +22,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["patterns"]
+testpaths = ["patterns", "plugins", "tests"]
 asyncio_mode = "auto"
 
 [tool.uv]
