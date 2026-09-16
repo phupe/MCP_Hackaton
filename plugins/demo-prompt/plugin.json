@@ -1,5 +1,4 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "demo-prompt",
   "version": "0.1.0",
   "description": "No tools; one prompt, summarise_gene, to see how a prompt appears in the host's menu.",
