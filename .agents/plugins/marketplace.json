@@ -1,20 +1,86 @@
 {
-  "name": "curie-mcp-hackathon",
+  "name": "sysbio-curie",
   "interface": {
-    "displayName": "Curie MCP Hackathon"
+    "displayName": "sysbio-curie"
   },
   "plugins": [
     {
-      "name": "curie-mcp-kit",
+      "name": "demo-skill",
       "source": {
-        "source": "local",
-        "path": "./"
+        "source": "git-subdir",
+        "url": "https://github.com/sysbio-curie/MCP_Hackaton.git",
+        "path": "./plugins/demo-skill"
       },
       "policy": {
         "installation": "AVAILABLE",
-        "authentication": "NONE"
+        "authentication": "ON_INSTALL"
       },
-      "category": "Productivity"
+      "category": "Developer Tools"
+    },
+    {
+      "name": "demo-tools",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/sysbio-curie/MCP_Hackaton.git",
+        "path": "./plugins/demo-tools"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "demo-progress",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/sysbio-curie/MCP_Hackaton.git",
+        "path": "./plugins/demo-progress"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "demo-elicitation",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/sysbio-curie/MCP_Hackaton.git",
+        "path": "./plugins/demo-elicitation"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "demo-prompt",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/sysbio-curie/MCP_Hackaton.git",
+        "path": "./plugins/demo-prompt"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "demo-resource",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/sysbio-curie/MCP_Hackaton.git",
+        "path": "./plugins/demo-resource"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }
