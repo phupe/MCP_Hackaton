@@ -1,5 +1,4 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "demo-resource",
   "version": "0.1.0",
   "description": "No tools; one resource (genes://panel) and one resource template (genes://panel/{symbol}).",

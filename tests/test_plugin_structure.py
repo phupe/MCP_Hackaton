@@ -23,19 +23,32 @@ Codex has no manifest of its own since it reads the shared root
 """
 
 # NOTE: this file is a copy of the spawning-agent-plugins skill's
-# scripts/check_plugin.py (see plugin.spec.json at the repo root). The one
-# local deviation from the skill's own copy: the MCP-section placeholder
-# check below tolerates exactly one root placeholder per ecosystem inside
-# `args` -- `${CLAUDE_PLUGIN_ROOT}` in `.claude-plugin/mcp.json` and
-# `${PLUGIN_ROOT}` in `mcp.json` -- because these five demo servers are
-# unpublished, repo-local scripts (`plugins/<name>/*_server.py`, no PyPI
-# package) that must be launched from the plugin's own directory instead of
-# a pinned published artifact. Any other `$` in `args`, and `$` in `command`
-# or in the non-Claude `env`, are still forbidden exactly as in the skill's
-# copy. The per-ecosystem launch comparison normalises both placeholder
-# spellings to a common `<PLUGIN_ROOT>` marker before comparing launches, so
-# this one tolerated deviation does not by itself trip the "launched
-# differently per ecosystem" check.
+# scripts/check_plugin.py (see plugin.spec.json at the repo root). Two local
+# deviations from the skill's own copy:
+#
+# 1. The MCP-section placeholder check below tolerates exactly one root
+# placeholder per ecosystem inside `args` -- `${CLAUDE_PLUGIN_ROOT}` in
+# `.claude-plugin/mcp.json` and `${PLUGIN_ROOT}` in `mcp.json` -- because
+# these five demo servers are unpublished, repo-local scripts
+# (`plugins/<name>/*_server.py`, no PyPI package) that must be launched from
+# the plugin's own directory instead of a pinned published artifact. Any
+# other `$` in `args`, and `$` in `command` or in the non-Claude `env`, are
+# still forbidden exactly as in the skill's copy. The per-ecosystem launch
+# comparison normalises both placeholder spellings to a common
+# `<PLUGIN_ROOT>` marker before comparing launches, so this one tolerated
+# deviation does not by itself trip the "launched differently per ecosystem"
+# check.
+#
+# 2. `AGENT_PLUGIN_SCHEMA_REQUIRED` (below) is False: the six root
+# plugin.json files under plugins/demo-*/ deliberately omit the Agent
+# Plugins 1.0 `$schema` key, because VS Code 1.138.0 / Copilot Chat 0.66.0
+# routes any plugin.json carrying it to a loader that never substitutes
+# `${PLUGIN_ROOT}` nor sets a working directory, so the servers cannot start
+# there (microsoft/vscode#303219, #305310). The "plugin.json needs the
+# agent-plugins.org $schema" check is gated on that constant, and the
+# mcp.json/plugin.json schema-version comparison skips when plugin.json has
+# no `$schema`, so this repo does not fail its own structural check while
+# the omission is in effect.
 #
 # The pytest entry point at the bottom also tries `--spec plugin.spec.json`
 # but falls back to no spec on ImportError: `_check_declared_plugins_complete`
@@ -70,6 +83,14 @@ PORTABLE_EVENTS = {
     "Stop",
 }
 AGENT_PLUGIN_FIELDS = {"$schema", "name", "version", "description", "author", "homepage", "repository", "license", "keywords", "extensions"}
+#: The Agent Plugins 1.0 spec makes `$schema` mandatory in plugin.json, but VS Code
+#: 1.138.0 / Copilot Chat 0.66.0 routes any plugin.json carrying it to a loader that
+#: never substitutes `${PLUGIN_ROOT}` nor sets a working directory (microsoft/vscode
+#: #303219, #305310), so the servers cannot start there. The six root plugin.json
+#: files under plugins/demo-*/ omit `$schema` on purpose until that is fixed, at which
+#: point flip this to True and restore the key (the generator writes it; `spawn
+#: --force` or a one-line edit).
+AGENT_PLUGIN_SCHEMA_REQUIRED = False
 FORBIDDEN_MCP_ENV_KEYS = {"PLUGIN_ROOT", "PLUGIN_DATA"}
 HOOK_LAUNCHER = 'uv run --no-project --quiet python "${CLAUDE_PLUGIN_ROOT}/'
 PORTABLE_HOOKS_FILE = "hooks/hooks.json"
@@ -360,11 +381,11 @@ def _collect_plugin_problems(root: Path, repo_root: Path, claude_market: dict | 
         extra = set(agent) - AGENT_PLUGIN_FIELDS
         if extra:
             say(f"{root}/plugin.json carries fields Agent Plugins 1.0 does not define: {sorted(extra)} (hooks/skills/mcpServers live in the other manifests)")
-        if not str(agent.get("$schema", "")).startswith("https://agent-plugins.org/schemas/"):
+        if AGENT_PLUGIN_SCHEMA_REQUIRED and not str(agent.get("$schema", "")).startswith("https://agent-plugins.org/schemas/"):
             say(f"{root}/plugin.json needs the agent-plugins.org $schema")
         agent_mcp = _load(root, "mcp.json")
         if agent_mcp:
-            if _schema_version(agent_mcp.get("$schema", "")) != _schema_version(agent.get("$schema", "")):
+            if agent.get("$schema") and _schema_version(agent_mcp.get("$schema", "")) != _schema_version(agent.get("$schema", "")):
                 say(f"{root}: mcp.json and plugin.json cite different agent-plugins.org schema versions")
             for sname, server in agent_mcp.get("mcpServers", {}).items():
                 if server.get("type") != "stdio" and "url" not in server:

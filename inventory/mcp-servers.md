@@ -10,7 +10,7 @@ Statuses are defined in [`README.md`](README.md): **confirmed** is vouched for o
 ### `mcp-biomodelling-servers` — NeKo, MaBoSS, PhysiCell/PhysiBoSS
 
 **Status: confirmed.** Start here. This is the reference example for everything the hackathon is
-about, and it is built on the same SDK v2 the patterns in this repo use.
+about, and it is built on the same SDK v2 the demo plugins in this repo use.
 
 - Repository: <https://github.com/marcorusc/mcp-biomodelling-servers>
 - PyPI: `mcp-biomodelling-servers` · MCP Registry: `io.github.marcorusc/{NeKo,MaBoSS,PhysiCell}`
