@@ -7,7 +7,7 @@
 ## Planned, not yet written
 
 The call promises learning materials two weeks before the event, covering three things. The
-first is largely handled by [`patterns/`](../patterns/) and
+first is largely handled by [`plugins/`](../plugins/) and
 [`inventory/`](../inventory/); these two remain:
 
 - **`what-is-mcp.md`** — MCP for biologists, from scratch: what a host, client and server are;
@@ -20,5 +20,4 @@ first is largely handled by [`patterns/`](../patterns/) and
   cut when you are behind, what to have ready for the demo, and how to publish afterwards.
 
 *Organisers: both are content decisions rather than setup, so they are deliberately left for us
-to draft together — the same as the pattern shortlist in
-[`patterns/README.md`](../patterns/README.md).*
+to draft together.*
