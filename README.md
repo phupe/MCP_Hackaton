@@ -196,5 +196,4 @@ each root `plugins/*/plugin.json` (see [Plugin formats](#plugin-formats)).
 
 ## Licence
 
-MIT — see [`LICENSE`](LICENSE). *Organisers: confirm this is the intended licence for the
-materials before the repository is shared with participants.*
+MIT — see [`LICENSE`](LICENSE).
