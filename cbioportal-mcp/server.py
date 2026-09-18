@@ -13,6 +13,8 @@ mcp = MCPServer(
         "bounded gene-centric mutation searches. "
         "Use find_patients_with_mutation to identify every patient in one study with an exact "
         "protein mutation; it queries the study's mutation sample list directly. "
+        "Use assess_gene_mutation_survival when the question concerns a gene without naming a "
+        "specific protein mutation. "
         "The server queries public cBioPortal data live and does not modify portal data."
     ),
 )
