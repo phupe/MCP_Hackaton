@@ -1,0 +1,118 @@
+import sys
+from pathlib import Path
+
+import pytest
+from mcp import Client
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import server  # noqa: E402
+from server import mcp  # noqa: E402
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+@pytest.fixture
+async def client():
+    async with Client(mcp, raise_exceptions=True) as c:
+        yield c
+
+
+@pytest.mark.anyio
+async def test_list_studies_returns_normalized_studies(client: Client, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
+        assert method == "GET"
+        assert path == "/studies"
+        assert kwargs["params"] == {
+            "pageNumber": 0,
+            "pageSize": 25,
+            "projection": "SUMMARY",
+            "sortBy": "name",
+            "direction": "ASC",
+        }
+        return [{"studyId": "study_a", "name": "Study A", "allSampleCount": 4}]
+
+    monkeypatch.setattr(server, "_request", fake_request)
+    result = await client.call_tool("list_studies", {})
+
+    assert result.structured_content["studies"] == [
+        {
+            "study_id": "study_a",
+            "name": "Study A",
+            "description": None,
+            "cancer_type_id": None,
+            "sample_count": 4,
+            "reference_genome": None,
+        }
+    ]
+
+
+@pytest.mark.anyio
+async def test_lookup_genes_uses_hugo_symbols(client: Client, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
+        assert (method, path) == ("GET", "/genes")
+        assert kwargs["params"] == {
+            "keyword": "TP53",
+            "pageNumber": 0,
+            "pageSize": 100,
+            "projection": "SUMMARY",
+        }
+        return [{"entrezGeneId": 7157, "hugoGeneSymbol": "TP53", "type": "protein-coding"}]
+
+    monkeypatch.setattr(server, "_request", fake_request)
+    result = await client.call_tool("lookup_genes", {"symbols": ["tp53"]})
+
+    assert result.structured_content["genes"][0]["entrez_gene_id"] == 7157
+
+
+@pytest.mark.anyio
+async def test_list_study_samples_returns_sample_ids(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
+        assert (method, path) == ("GET", "/studies/study_a/samples")
+        assert kwargs["params"] == {"pageNumber": 0, "pageSize": 25, "projection": "SUMMARY"}
+        return [{"sampleId": "sample-1", "patientId": "patient-1", "sampleType": "Primary"}]
+
+    monkeypatch.setattr(server, "_request", fake_request)
+    result = await client.call_tool("list_study_samples", {"study_id": "study_a"})
+
+    assert result.structured_content["samples"][0]["sample_id"] == "sample-1"
+
+
+@pytest.mark.anyio
+async def test_fetch_mutations_uses_bounded_filter(client: Client, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
+        assert (method, path) == ("POST", "/molecular-profiles/study_mutations/mutations/fetch")
+        assert kwargs["params"] == {"projection": "SUMMARY"}
+        assert kwargs["json"] == {"sampleIds": ["sample-1"], "entrezGeneIds": [7157]}
+        return [{"sampleId": "sample-1", "entrezGeneId": 7157, "mutationType": "MISSENSE"}]
+
+    monkeypatch.setattr(server, "_request", fake_request)
+    result = await client.call_tool(
+        "fetch_mutations",
+        {
+            "molecular_profile_id": "study_mutations",
+            "sample_ids": ["sample-1"],
+            "entrez_gene_ids": [7157],
+        },
+    )
+
+    assert result.structured_content["mutations"][0]["mutationType"] == "MISSENSE"
+
+
+@pytest.mark.anyio
+async def test_fetch_mutations_rejects_more_than_100_samples(client: Client) -> None:
+    result = await client.call_tool(
+        "fetch_mutations",
+        {
+            "molecular_profile_id": "study_mutations",
+            "sample_ids": [f"sample-{index}" for index in range(101)],
+            "entrez_gene_ids": [7157],
+        },
+    )
+
+    assert result.is_error
