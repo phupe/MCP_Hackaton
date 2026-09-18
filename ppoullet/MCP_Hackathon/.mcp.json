@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cbioportal": {
+      "command": "D:\\MCP_Hackathon\\cbioportal-mcp\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "cbioportal_mcp.server"]
+    }
+  }
+}
