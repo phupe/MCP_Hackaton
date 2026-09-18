@@ -7,6 +7,7 @@ from mcp import Client
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import server  # noqa: E402
+from app import api  # noqa: E402
 from server import mcp  # noqa: E402
 
 
@@ -35,7 +36,7 @@ async def test_list_studies_returns_normalized_studies(client: Client, monkeypat
         }
         return [{"studyId": "study_a", "name": "Study A", "allSampleCount": 4}]
 
-    monkeypatch.setattr(server, "_request", fake_request)
+    monkeypatch.setattr(api, "request", fake_request)
     result = await client.call_tool("list_studies", {})
 
     assert result.structured_content["studies"] == [
@@ -65,7 +66,7 @@ async def test_search_studies_adds_filters(client: Client, monkeypatch: pytest.M
         }
         return [{"studyId": "nbl_a", "name": "Pediatric Neuroblastoma", "allSampleCount": 2}]
 
-    monkeypatch.setattr(server, "_request", fake_request)
+    monkeypatch.setattr(api, "request", fake_request)
     result = await client.call_tool(
         "search_studies", {"keyword": "BRCA1", "cancer_type_id": "nbl", "filter_text": "pediatric"}
     )
@@ -85,7 +86,7 @@ async def test_lookup_genes_uses_hugo_symbols(client: Client, monkeypatch: pytes
         }
         return [{"entrezGeneId": 7157, "hugoGeneSymbol": "TP53", "type": "protein-coding"}]
 
-    monkeypatch.setattr(server, "_request", fake_request)
+    monkeypatch.setattr(api, "request", fake_request)
     result = await client.call_tool("lookup_genes", {"symbols": ["tp53"]})
 
     assert result.structured_content["genes"][0]["entrez_gene_id"] == 7157
@@ -100,7 +101,7 @@ async def test_list_study_samples_returns_sample_ids(
         assert kwargs["params"] == {"pageNumber": 0, "pageSize": 25, "projection": "SUMMARY"}
         return [{"sampleId": "sample-1", "patientId": "patient-1", "sampleType": "Primary"}]
 
-    monkeypatch.setattr(server, "_request", fake_request)
+    monkeypatch.setattr(api, "request", fake_request)
     result = await client.call_tool("list_study_samples", {"study_id": "study_a"})
 
     assert result.structured_content["samples"][0]["sample_id"] == "sample-1"
@@ -114,7 +115,7 @@ async def test_fetch_mutations_uses_bounded_filter(client: Client, monkeypatch: 
         assert kwargs["json"] == {"sampleIds": ["sample-1"], "entrezGeneIds": [7157]}
         return [{"sampleId": "sample-1", "entrezGeneId": 7157, "mutationType": "MISSENSE"}]
 
-    monkeypatch.setattr(server, "_request", fake_request)
+    monkeypatch.setattr(api, "request", fake_request)
     result = await client.call_tool(
         "fetch_mutations",
         {
@@ -139,3 +140,83 @@ async def test_fetch_mutations_rejects_more_than_100_samples(client: Client) -> 
     )
 
     assert result.is_error
+
+
+@pytest.mark.anyio
+async def test_find_patients_with_mutation_uses_sample_list_and_groups_patients(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
+        if (method, path) == ("GET", "/studies/study_a/molecular-profiles"):
+            assert kwargs["params"] == {"projection": "SUMMARY"}
+            return [{"molecularProfileId": "study_a_mutations", "molecularAlterationType": "MUTATION_EXTENDED"}]
+        if (method, path) == ("GET", "/studies/study_a/sample-lists"):
+            assert kwargs["params"] == {"projection": "SUMMARY"}
+            return [{"sampleListId": "study_a_sequenced", "name": "Sequenced samples"}]
+        if (method, path) == ("GET", "/genes"):
+            assert kwargs["params"] == {
+                "keyword": "BRAF",
+                "pageNumber": 0,
+                "pageSize": 100,
+                "projection": "SUMMARY",
+            }
+            return [{"entrezGeneId": 673, "hugoGeneSymbol": "BRAF"}]
+        if (method, path) == ("POST", "/molecular-profiles/study_a_mutations/mutations/fetch"):
+            assert kwargs["json"] == {"sampleListId": "study_a_sequenced", "entrezGeneIds": [673]}
+            return [
+                {"patientId": "patient-1", "sampleId": "sample-1", "proteinChange": "p.V600E"},
+                {"patientId": "patient-1", "sampleId": "sample-2", "proteinChange": "V600E"},
+                {"patientId": "patient-2", "sampleId": "sample-3", "proteinChange": "V600K"},
+            ]
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(api, "request", fake_request)
+    result = await client.call_tool(
+        "find_patients_with_mutation",
+        {"study_id": "study_a", "gene_symbol": "braf", "protein_change": "V600E"},
+    )
+
+    assert result.structured_content["molecular_profile_id"] == "study_a_mutations"
+    assert result.structured_content["patients"] == [
+        {
+            "patient_id": "patient-1",
+            "sample_ids": ["sample-1", "sample-2"],
+            "mutations": [
+                {"patientId": "patient-1", "sampleId": "sample-1", "proteinChange": "p.V600E"},
+                {"patientId": "patient-1", "sampleId": "sample-2", "proteinChange": "V600E"},
+            ],
+            "clinical_data": {},
+        }
+    ]
+
+
+@pytest.mark.anyio
+async def test_find_patients_with_mutation_fetches_requested_clinical_data(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
+        if path.endswith("/molecular-profiles"):
+            return [{"molecularProfileId": "study_a_mutations", "molecularAlterationType": "MUTATION_EXTENDED"}]
+        if path.endswith("/sample-lists"):
+            return [{"sampleListId": "study_a_sequenced", "name": "Sequenced samples"}]
+        if path == "/genes":
+            return [{"entrezGeneId": 673, "hugoGeneSymbol": "BRAF"}]
+        if path.endswith("/mutations/fetch"):
+            return [{"patientId": "patient-1", "sampleId": "sample-1", "proteinChange": "V600E"}]
+        if path == "/studies/study_a/clinical-data/fetch":
+            assert kwargs["json"] == {"ids": ["patient-1"], "attributeIds": ["OS_STATUS"]}
+            return [{"patientId": "patient-1", "clinicalAttributeId": "OS_STATUS", "value": "LIVING"}]
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(api, "request", fake_request)
+    result = await client.call_tool(
+        "find_patients_with_mutation",
+        {
+            "study_id": "study_a",
+            "gene_symbol": "BRAF",
+            "protein_change": "V600E",
+            "clinical_attribute_ids": ["OS_STATUS"],
+        },
+    )
+
+    assert result.structured_content["patients"][0]["clinical_data"] == {"OS_STATUS": "LIVING"}

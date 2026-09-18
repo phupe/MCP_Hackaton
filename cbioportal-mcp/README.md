@@ -13,6 +13,10 @@ It exposes a focused workflow:
 6. `fetch_mutations` retrieves mutations for bounded, explicit sample and gene sets.
 7. `fetch_mutations_by_study` discovers the mutation profile and sample list automatically.
 8. `find_gene_alterations` scans a bounded set of studies and groups results by study.
+9. `find_patients_with_mutation` returns the patients carrying an exact protein mutation in one
+   study. It discovers the profile and mutation sample list in parallel, resolves the gene, then
+   fetches the entire sequenced cohort in **four REST requests**. Optional requested clinical
+   attributes are fetched in one additional batched request.
 
 The higher-level alteration tools currently expose mutations. Copy-number and structural-variant
 profiles are deliberately reported by `get_study_data_catalog` but are not queried implicitly:
@@ -21,6 +25,11 @@ limits and typed output contract rather than silently broadening a mutation quer
 
 The server never alters portal data. It uses `https://www.cbioportal.org/api` by default; set
 `CBIOPORTAL_API_BASE_URL` to use another compatible cBioPortal instance.
+
+`find_patients_with_mutation` matches `proteinChange` values exactly after normalizing letter case
+and an optional `p.` prefix (for example, `V600E` and `p.V600E`). It returns the public patient and
+sample identifiers plus mutation records; pass `clinical_attribute_ids` only when you need specific
+patient-level clinical fields.
 
 ## Running
 
