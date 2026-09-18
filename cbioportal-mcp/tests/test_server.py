@@ -220,3 +220,68 @@ async def test_find_patients_with_mutation_fetches_requested_clinical_data(
     )
 
     assert result.structured_content["patients"][0]["clinical_data"] == {"OS_STATUS": "LIVING"}
+
+
+@pytest.mark.anyio
+async def test_assess_mutation_survival_compares_mutation_carriers(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
+        if path == "/studies/study_a/clinical-attributes":
+            return [
+                {"clinicalAttributeId": "OS_MONTHS"},
+                {"clinicalAttributeId": "OS_STATUS"},
+            ]
+        if path == "/studies/study_a/patients":
+            return [{"patientId": f"patient-{index}"} for index in range(1, 5)]
+        if path.endswith("/molecular-profiles"):
+            return [{"molecularProfileId": "study_a_mutations", "molecularAlterationType": "MUTATION_EXTENDED"}]
+        if path.endswith("/sample-lists"):
+            return [{"sampleListId": "study_a_sequenced", "name": "Sequenced samples"}]
+        if path == "/genes":
+            return [{"entrezGeneId": 673, "hugoGeneSymbol": "BRAF"}]
+        if path.endswith("/mutations/fetch"):
+            return [
+                {"patientId": "patient-1", "proteinChange": "V600E"},
+                {"patientId": "patient-2", "proteinChange": "V600E"},
+            ]
+        if path == "/studies/study_a/clinical-data/fetch":
+            assert kwargs["json"] == {
+                "ids": ["patient-1", "patient-2", "patient-3", "patient-4"],
+                "attributeIds": ["OS_MONTHS", "OS_STATUS"],
+            }
+            return [
+                {"patientId": "patient-1", "clinicalAttributeId": "OS_MONTHS", "value": "10"},
+                {"patientId": "patient-1", "clinicalAttributeId": "OS_STATUS", "value": "DECEASED"},
+                {"patientId": "patient-2", "clinicalAttributeId": "OS_MONTHS", "value": "20"},
+                {"patientId": "patient-2", "clinicalAttributeId": "OS_STATUS", "value": "LIVING"},
+                {"patientId": "patient-3", "clinicalAttributeId": "OS_MONTHS", "value": "30"},
+                {"patientId": "patient-3", "clinicalAttributeId": "OS_STATUS", "value": "DECEASED"},
+                {"patientId": "patient-4", "clinicalAttributeId": "OS_MONTHS", "value": "40"},
+                {"patientId": "patient-4", "clinicalAttributeId": "OS_STATUS", "value": "DECEASED"},
+            ]
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(api, "request", fake_request)
+    result = await client.call_tool(
+        "assess_mutation_survival",
+        {"study_id": "study_a", "gene_symbol": "BRAF", "protein_change": "p.V600E"},
+    )
+
+    assert result.structured_content["mutation_group"] == {
+        "patient_count": 2,
+        "event_count": 1,
+        "median_months": None,
+    }
+    assert result.structured_content["comparison_group"]["patient_count"] == 2
+    assert result.structured_content["mutation_patient_ids"] == ["patient-1", "patient-2"]
+    assert result.structured_content["conclusion"] == "not_demonstrably_different"
+
+
+@pytest.mark.anyio
+async def test_single_request_wrappers_are_not_exposed(client: Client) -> None:
+    tool_names = {tool.name for tool in (await client.list_tools()).tools}
+
+    assert {"list_studies", "search_studies", "list_study_samples", "fetch_mutations"}.isdisjoint(
+        tool_names
+    )

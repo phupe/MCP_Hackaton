@@ -17,6 +17,7 @@ from .models import (
     StudyAlterationResult,
     StudyDataCatalog,
     StudyList,
+    MutationSurvivalAnalysis,
 )
 
 MAX_PAGE_SIZE = 100
@@ -28,7 +29,6 @@ READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 def register_tools(mcp: MCPServer) -> None:
     """Register the complete stable cBioPortal MCP tool surface."""
 
-    @mcp.tool(annotations=READ_ONLY)
     async def list_studies(
         page_number: Annotated[int, Field(ge=0, description="Zero-based page number.")] = 0,
         page_size: Annotated[
@@ -53,7 +53,6 @@ def register_tools(mcp: MCPServer) -> None:
             studies=[services.study_from_api(item) for item in data],
         )
 
-    @mcp.tool(annotations=READ_ONLY)
     async def search_studies(
         keyword: Annotated[str | None, Field(description="Optional text passed to cBioPortal's study search.")] = None,
         cancer_type_id: Annotated[
@@ -111,7 +110,6 @@ def register_tools(mcp: MCPServer) -> None:
         """Get a study plus its molecular profiles and sample lists for choosing data to query."""
         return await services.get_study_data_catalog(study_id)
 
-    @mcp.tool(annotations=READ_ONLY)
     async def list_study_samples(
         study_id: Annotated[str, Field(min_length=1, description="cBioPortal study ID from list_studies.")],
         page_number: Annotated[int, Field(ge=0, description="Zero-based page number.")] = 0,
@@ -167,6 +165,22 @@ def register_tools(mcp: MCPServer) -> None:
         return await services.find_patients_with_mutation(
             study_id, gene_symbol, protein_change, clinical_attribute_ids
         )
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def assess_mutation_survival(
+        study_id: Annotated[str, Field(min_length=1, description="cBioPortal study ID representing the disease.")],
+        gene_symbol: Annotated[str, Field(min_length=1, description="Hugo gene symbol, for example BRCA1.")],
+        protein_change: Annotated[
+            str, Field(min_length=1, description="Exact protein change, for example V600E or p.V600E.")
+        ],
+    ) -> MutationSurvivalAnalysis:
+        """Compare overall survival for patients with an exact mutation against non-carriers in a study.
+
+        Uses OS_MONTHS and OS_STATUS when available, Kaplan-Meier median survival, and a
+        two-sided log-rank test. The conclusion is "better" or "worse" only when p < 0.05;
+        otherwise it is "not_demonstrably_different".
+        """
+        return await services.assess_mutation_survival(study_id, gene_symbol, protein_change)
 
     @mcp.tool(annotations=READ_ONLY)
     async def fetch_mutations_by_study(
@@ -233,7 +247,6 @@ def register_tools(mcp: MCPServer) -> None:
             )
         )
 
-    @mcp.tool(annotations=READ_ONLY)
     async def fetch_mutations(
         molecular_profile_id: Annotated[
             str, Field(min_length=1, description="Mutation molecular profile ID from get_study_data_catalog.")

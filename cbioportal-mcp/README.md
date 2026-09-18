@@ -5,18 +5,16 @@ A read-only [MCP](https://modelcontextprotocol.io/) server for live queries to t
 
 It exposes a focused workflow:
 
-1. `list_studies` finds public study IDs.
-2. `search_studies` filters studies by API keyword, cancer type, or arbitrary text.
-3. `get_study_data_catalog` returns the study's molecular profiles and sample lists.
-4. `list_study_samples` retrieves bounded pages of sample IDs.
-5. `lookup_genes` resolves Hugo symbols to Entrez IDs.
-6. `fetch_mutations` retrieves mutations for bounded, explicit sample and gene sets.
-7. `fetch_mutations_by_study` discovers the mutation profile and sample list automatically.
-8. `find_gene_alterations` scans a bounded set of studies and groups results by study.
-9. `find_patients_with_mutation` returns the patients carrying an exact protein mutation in one
+1. `get_study_data_catalog` returns the study's molecular profiles and sample lists.
+2. `lookup_genes` resolves one or more Hugo symbols to Entrez IDs.
+3. `fetch_mutations_by_study` discovers the mutation profile and sample list automatically.
+4. `find_gene_alterations` scans a bounded set of studies and groups results by study.
+5. `find_patients_with_mutation` returns the patients carrying an exact protein mutation in one
    study. It discovers the profile and mutation sample list in parallel, resolves the gene, then
    fetches the entire sequenced cohort in **four REST requests**. Optional requested clinical
    attributes are fetched in one additional batched request.
+6. `assess_mutation_survival` compares overall survival between patients carrying an exact mutation
+   and non-carriers using Kaplan-Meier medians and a two-sided log-rank test.
 
 The higher-level alteration tools currently expose mutations. Copy-number and structural-variant
 profiles are deliberately reported by `get_study_data_catalog` but are not queried implicitly:

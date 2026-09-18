@@ -1,6 +1,7 @@
 """cBioPortal query orchestration independent of MCP registration."""
 
 import asyncio
+import math
 from typing import Any
 from urllib.parse import quote
 
@@ -19,9 +20,12 @@ from .models import (
     Study,
     StudyAlterationResult,
     StudyDataCatalog,
+    MutationSurvivalAnalysis,
+    SurvivalGroup,
 )
 
 MAX_COHORT_MUTATIONS = 10_000_000
+MAX_SURVIVAL_PATIENTS = 100_000
 
 
 def study_from_api(raw: dict[str, Any]) -> Study:
@@ -238,4 +242,162 @@ async def find_patients_with_mutation(
             )
             for patient_id, patient_mutations in mutations_by_patient.items()
         ],
+    )
+
+
+def _survival_group(records: list[tuple[float, bool]]) -> SurvivalGroup:
+    if not records:
+        return SurvivalGroup(patient_count=0, event_count=0)
+    ordered = sorted(records)
+    at_risk = len(ordered)
+    survival = 1.0
+    median: float | None = None
+    for time, event in ordered:
+        if event:
+            survival *= (at_risk - 1) / at_risk
+            if median is None and survival <= 0.5:
+                median = time
+        at_risk -= 1
+    return SurvivalGroup(
+        patient_count=len(records),
+        event_count=sum(event for _, event in records),
+        median_months=median,
+    )
+
+
+def _log_rank(
+    mutation_records: list[tuple[float, bool]], comparison_records: list[tuple[float, bool]]
+) -> tuple[float | None, float | None]:
+    if not mutation_records or not comparison_records:
+        return None, None
+    statistic = 0.0
+    event_times = sorted({time for time, event in mutation_records + comparison_records if event})
+    for time in event_times:
+        at_risk_mutation = sum(record_time >= time for record_time, _ in mutation_records)
+        at_risk_comparison = sum(record_time >= time for record_time, _ in comparison_records)
+        at_risk = at_risk_mutation + at_risk_comparison
+        events_mutation = sum(record_time == time and event for record_time, event in mutation_records)
+        events_total = events_mutation + sum(
+            record_time == time and event for record_time, event in comparison_records
+        )
+        if at_risk <= 1 or events_total == 0:
+            continue
+        expected = events_total * at_risk_mutation / at_risk
+        variance = (
+            at_risk_mutation
+            * at_risk_comparison
+            * events_total
+            * (at_risk - events_total)
+            / (at_risk * at_risk * (at_risk - 1))
+        )
+        if variance:
+            statistic += (events_mutation - expected) ** 2 / variance
+    return statistic, math.erfc(math.sqrt(statistic / 2))
+
+
+def _clinical_attribute_id(attributes: list[dict[str, Any]], candidates: set[str]) -> str | None:
+    for attribute in attributes:
+        attribute_id = str(attribute.get("clinicalAttributeId", ""))
+        if attribute_id.casefold() in candidates:
+            return attribute_id
+    return None
+
+
+async def assess_mutation_survival(
+    study_id: str, gene_symbol: str, protein_change: str
+) -> MutationSurvivalAnalysis:
+    attributes, patients, (profile_id, sample_list_id), genes = await asyncio.gather(
+        api.request(
+            "GET",
+            f"/studies/{quote(study_id, safe='')}/clinical-attributes",
+            params={"projection": "SUMMARY"},
+        ),
+        api.request(
+            "GET",
+            f"/studies/{quote(study_id, safe='')}/patients",
+            params={"pageNumber": 0, "pageSize": MAX_SURVIVAL_PATIENTS, "projection": "SUMMARY"},
+        ),
+        mutation_profile_and_sample_list(study_id),
+        lookup_genes([gene_symbol]),
+    )
+    time_attribute = _clinical_attribute_id(attributes, {"os_months", "overall_survival_months"})
+    status_attribute = _clinical_attribute_id(attributes, {"os_status", "overall_survival_status"})
+    if time_attribute is None or status_attribute is None:
+        raise ToolError(
+            f"Study '{study_id}' does not expose both OS_MONTHS and OS_STATUS survival attributes."
+        )
+    if profile_id is None or sample_list_id is None or not genes.genes:
+        raise ToolError(f"Study '{study_id}' has no usable mutation profile or gene.")
+
+    mutations = await api.request(
+        "POST",
+        f"/molecular-profiles/{quote(profile_id, safe='')}/mutations/fetch",
+        params={"projection": "SUMMARY", "pageNumber": 0, "pageSize": MAX_COHORT_MUTATIONS},
+        json={"sampleListId": sample_list_id, "entrezGeneIds": [genes.genes[0].entrez_gene_id]},
+    )
+    normalized_change = normalized_protein_change(protein_change)
+    mutation_patient_ids = {
+        str(item["patientId"])
+        for item in mutations
+        if normalized_protein_change(str(item.get("proteinChange", ""))) == normalized_change
+    }
+    patient_ids = [str(item["patientId"]) for item in patients]
+    clinical_data = await api.request(
+        "POST",
+        f"/studies/{quote(study_id, safe='')}/clinical-data/fetch",
+        params={"clinicalDataType": "PATIENT", "projection": "SUMMARY"},
+        json={
+            "ids": patient_ids,
+            "attributeIds": [time_attribute, status_attribute],
+        },
+    )
+    values: dict[str, dict[str, str]] = {}
+    for item in clinical_data:
+        values.setdefault(str(item["patientId"]), {})[str(item["clinicalAttributeId"])] = str(
+            item.get("value", "")
+        )
+    mutation_records: list[tuple[float, bool]] = []
+    comparison_records: list[tuple[float, bool]] = []
+    for patient_id in patient_ids:
+        patient_values = values.get(patient_id, {})
+        try:
+            time = float(patient_values[time_attribute])
+        except (KeyError, TypeError, ValueError):
+            continue
+        status = patient_values.get(status_attribute, "").casefold()
+        event = status in {"deceased", "dead", "1", "yes", "true"}
+        (mutation_records if patient_id in mutation_patient_ids else comparison_records).append((time, event))
+
+    mutation_group = _survival_group(mutation_records)
+    comparison_group = _survival_group(comparison_records)
+    statistic, p_value = _log_rank(mutation_records, comparison_records)
+    if p_value is not None and p_value < 0.05:
+        if (
+            mutation_group.median_months is not None
+            and comparison_group.median_months is not None
+            and mutation_group.median_months > comparison_group.median_months
+        ):
+            conclusion = "better"
+        elif (
+            mutation_group.median_months is not None
+            and comparison_group.median_months is not None
+            and mutation_group.median_months < comparison_group.median_months
+        ):
+            conclusion = "worse"
+        else:
+            conclusion = "different_but_medians_unavailable"
+    else:
+        conclusion = "not_demonstrably_different"
+    return MutationSurvivalAnalysis(
+        study_id=study_id,
+        gene_symbol=genes.genes[0].hugo_gene_symbol,
+        protein_change=protein_change.strip(),
+        survival_time_attribute=time_attribute,
+        survival_status_attribute=status_attribute,
+        mutation_group=mutation_group,
+        comparison_group=comparison_group,
+        log_rank_statistic=statistic,
+        log_rank_p_value=p_value,
+        conclusion=conclusion,
+        mutation_patient_ids=sorted(mutation_patient_ids),
     )

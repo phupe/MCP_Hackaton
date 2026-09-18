@@ -94,3 +94,23 @@ class PatientMutationCohort(BaseModel):
     gene: Gene
     protein_change: str
     patients: list[PatientMutation]
+
+
+class SurvivalGroup(BaseModel):
+    patient_count: int
+    event_count: int
+    median_months: float | None = None
+
+
+class MutationSurvivalAnalysis(BaseModel):
+    study_id: str
+    gene_symbol: str
+    protein_change: str
+    survival_time_attribute: str
+    survival_status_attribute: str
+    mutation_group: SurvivalGroup
+    comparison_group: SurvivalGroup
+    log_rank_statistic: float | None = None
+    log_rank_p_value: float | None = None
+    conclusion: str
+    mutation_patient_ids: list[str]
