@@ -15,6 +15,9 @@ It exposes a focused workflow:
    attributes are fetched in one additional batched request.
 6. `assess_mutation_survival` compares overall survival between patients carrying an exact mutation
    and non-carriers using Kaplan-Meier medians and a two-sided log-rank test.
+7. `assess_gene_mutation_survival` evaluates each protein mutation in a gene against gene
+   non-carriers when both groups have at least five patients with survival data. If no individual
+   mutation meets that threshold, it compares all gene-mutated patients with non-carriers.
 
 The higher-level alteration tools currently expose mutations. Copy-number and structural-variant
 profiles are deliberately reported by `get_study_data_catalog` but are not queried implicitly:

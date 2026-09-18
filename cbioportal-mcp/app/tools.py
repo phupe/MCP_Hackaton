@@ -17,6 +17,7 @@ from .models import (
     StudyAlterationResult,
     StudyDataCatalog,
     StudyList,
+    GeneMutationSurvivalAnalysis,
     MutationSurvivalAnalysis,
 )
 
@@ -52,7 +53,7 @@ def register_tools(mcp: MCPServer) -> None:
             page_size=page_size,
             studies=[services.study_from_api(item) for item in data],
         )
-
+    @mcp.tool(annotations=READ_ONLY)
     async def search_studies(
         keyword: Annotated[str | None, Field(description="Optional text passed to cBioPortal's study search.")] = None,
         cancer_type_id: Annotated[
@@ -181,6 +182,19 @@ def register_tools(mcp: MCPServer) -> None:
         otherwise it is "not_demonstrably_different".
         """
         return await services.assess_mutation_survival(study_id, gene_symbol, protein_change)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def assess_gene_mutation_survival(
+        study_id: Annotated[str, Field(min_length=1, description="cBioPortal study ID representing the disease.")],
+        gene_symbol: Annotated[str, Field(min_length=1, description="Hugo gene symbol, for example BRCA1.")],
+    ) -> GeneMutationSurvivalAnalysis:
+        """Compare each adequately represented gene mutation with gene non-carriers.
+
+        A mutation needs at least five patients with survival data, as does the non-mutated group.
+        If no individual mutation meets that threshold, all patients mutated in the gene are compared
+        with gene non-carriers instead.
+        """
+        return await services.assess_gene_mutation_survival(study_id, gene_symbol)
 
     @mcp.tool(annotations=READ_ONLY)
     async def fetch_mutations_by_study(

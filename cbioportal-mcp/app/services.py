@@ -20,12 +20,14 @@ from .models import (
     Study,
     StudyAlterationResult,
     StudyDataCatalog,
+    GeneMutationSurvivalAnalysis,
     MutationSurvivalAnalysis,
     SurvivalGroup,
 )
 
 MAX_COHORT_MUTATIONS = 10_000_000
 MAX_SURVIVAL_PATIENTS = 100_000
+MIN_SURVIVAL_GROUP_SIZE = 5
 
 
 def study_from_api(raw: dict[str, Any]) -> Study:
@@ -303,6 +305,26 @@ def _clinical_attribute_id(attributes: list[dict[str, Any]], candidates: set[str
     return None
 
 
+def _survival_conclusion(
+    mutation_group: SurvivalGroup, comparison_group: SurvivalGroup, p_value: float | None
+) -> str:
+    if p_value is not None and p_value < 0.05:
+        if (
+            mutation_group.median_months is not None
+            and comparison_group.median_months is not None
+            and mutation_group.median_months > comparison_group.median_months
+        ):
+            return "better"
+        if (
+            mutation_group.median_months is not None
+            and comparison_group.median_months is not None
+            and mutation_group.median_months < comparison_group.median_months
+        ):
+            return "worse"
+        return "different_but_medians_unavailable"
+    return "not_demonstrably_different"
+
+
 async def assess_mutation_survival(
     study_id: str, gene_symbol: str, protein_change: str
 ) -> MutationSurvivalAnalysis:
@@ -371,23 +393,6 @@ async def assess_mutation_survival(
     mutation_group = _survival_group(mutation_records)
     comparison_group = _survival_group(comparison_records)
     statistic, p_value = _log_rank(mutation_records, comparison_records)
-    if p_value is not None and p_value < 0.05:
-        if (
-            mutation_group.median_months is not None
-            and comparison_group.median_months is not None
-            and mutation_group.median_months > comparison_group.median_months
-        ):
-            conclusion = "better"
-        elif (
-            mutation_group.median_months is not None
-            and comparison_group.median_months is not None
-            and mutation_group.median_months < comparison_group.median_months
-        ):
-            conclusion = "worse"
-        else:
-            conclusion = "different_but_medians_unavailable"
-    else:
-        conclusion = "not_demonstrably_different"
     return MutationSurvivalAnalysis(
         study_id=study_id,
         gene_symbol=genes.genes[0].hugo_gene_symbol,
@@ -398,6 +403,129 @@ async def assess_mutation_survival(
         comparison_group=comparison_group,
         log_rank_statistic=statistic,
         log_rank_p_value=p_value,
-        conclusion=conclusion,
+        conclusion=_survival_conclusion(mutation_group, comparison_group, p_value),
         mutation_patient_ids=sorted(mutation_patient_ids),
+    )
+
+
+async def assess_gene_mutation_survival(study_id: str, gene_symbol: str) -> GeneMutationSurvivalAnalysis:
+    """Assess each sufficiently represented protein mutation, or all mutated patients as a fallback."""
+    attributes, patients, (profile_id, sample_list_id), genes = await asyncio.gather(
+        api.request(
+            "GET",
+            f"/studies/{quote(study_id, safe='')}/clinical-attributes",
+            params={"projection": "SUMMARY"},
+        ),
+        api.request(
+            "GET",
+            f"/studies/{quote(study_id, safe='')}/patients",
+            params={"pageNumber": 0, "pageSize": MAX_SURVIVAL_PATIENTS, "projection": "SUMMARY"},
+        ),
+        mutation_profile_and_sample_list(study_id),
+        lookup_genes([gene_symbol]),
+    )
+    time_attribute = _clinical_attribute_id(attributes, {"os_months", "overall_survival_months"})
+    status_attribute = _clinical_attribute_id(attributes, {"os_status", "overall_survival_status"})
+    if time_attribute is None or status_attribute is None:
+        raise ToolError(
+            f"Study '{study_id}' does not expose both OS_MONTHS and OS_STATUS survival attributes."
+        )
+    if profile_id is None or sample_list_id is None or not genes.genes:
+        raise ToolError(f"Study '{study_id}' has no usable mutation profile or gene.")
+
+    mutations = await api.request(
+        "POST",
+        f"/molecular-profiles/{quote(profile_id, safe='')}/mutations/fetch",
+        params={"projection": "SUMMARY", "pageNumber": 0, "pageSize": MAX_COHORT_MUTATIONS},
+        json={"sampleListId": sample_list_id, "entrezGeneIds": [genes.genes[0].entrez_gene_id]},
+    )
+    patient_ids = [str(item["patientId"]) for item in patients]
+    clinical_data = await api.request(
+        "POST",
+        f"/studies/{quote(study_id, safe='')}/clinical-data/fetch",
+        params={"clinicalDataType": "PATIENT", "projection": "SUMMARY"},
+        json={"ids": patient_ids, "attributeIds": [time_attribute, status_attribute]},
+    )
+    values: dict[str, dict[str, str]] = {}
+    for item in clinical_data:
+        values.setdefault(str(item["patientId"]), {})[str(item["clinicalAttributeId"])] = str(
+            item.get("value", "")
+        )
+    records_by_patient: dict[str, tuple[float, bool]] = {}
+    for patient_id in patient_ids:
+        patient_values = values.get(patient_id, {})
+        try:
+            time = float(patient_values[time_attribute])
+        except (KeyError, TypeError, ValueError):
+            continue
+        status = patient_values.get(status_attribute, "").casefold()
+        records_by_patient[patient_id] = (time, status in {"deceased", "dead", "1", "yes", "true"})
+
+    mutation_patients: dict[str, set[str]] = {}
+    all_mutated_patient_ids: set[str] = set()
+    for mutation in mutations:
+        patient_id = str(mutation.get("patientId", ""))
+        if patient_id not in records_by_patient:
+            continue
+        all_mutated_patient_ids.add(patient_id)
+        protein_change = normalized_protein_change(str(mutation.get("proteinChange", "")))
+        if protein_change:
+            mutation_patients.setdefault(protein_change, set()).add(patient_id)
+
+    wild_type_records = [
+        record for patient_id, record in records_by_patient.items() if patient_id not in all_mutated_patient_ids
+    ]
+
+    def analysis_for(protein_change: str, mutation_patient_ids: set[str]) -> MutationSurvivalAnalysis:
+        mutation_records = [records_by_patient[patient_id] for patient_id in sorted(mutation_patient_ids)]
+        mutation_group = _survival_group(mutation_records)
+        comparison_group = _survival_group(wild_type_records)
+        statistic, p_value = _log_rank(mutation_records, wild_type_records)
+        return MutationSurvivalAnalysis(
+            study_id=study_id,
+            gene_symbol=genes.genes[0].hugo_gene_symbol,
+            protein_change=protein_change,
+            survival_time_attribute=time_attribute,
+            survival_status_attribute=status_attribute,
+            mutation_group=mutation_group,
+            comparison_group=comparison_group,
+            log_rank_statistic=statistic,
+            log_rank_p_value=p_value,
+            conclusion=_survival_conclusion(mutation_group, comparison_group, p_value),
+            mutation_patient_ids=sorted(mutation_patient_ids),
+        )
+
+    analyses = [
+        analysis_for(protein_change.upper(), mutation_patient_ids)
+        for protein_change, mutation_patient_ids in sorted(mutation_patients.items())
+        if len(mutation_patient_ids) >= MIN_SURVIVAL_GROUP_SIZE
+        and len(wild_type_records) >= MIN_SURVIVAL_GROUP_SIZE
+    ]
+    if analyses:
+        return GeneMutationSurvivalAnalysis(
+            study_id=study_id,
+            gene_symbol=genes.genes[0].hugo_gene_symbol,
+            survival_time_attribute=time_attribute,
+            survival_status_attribute=status_attribute,
+            minimum_group_size=MIN_SURVIVAL_GROUP_SIZE,
+            analysis_mode="per_mutation",
+            analyses=analyses,
+        )
+
+    if (
+        len(all_mutated_patient_ids) < MIN_SURVIVAL_GROUP_SIZE
+        or len(wild_type_records) < MIN_SURVIVAL_GROUP_SIZE
+    ):
+        raise ToolError(
+            f"Study '{study_id}' has fewer than {MIN_SURVIVAL_GROUP_SIZE} patients with survival data "
+            "in either the mutated or non-mutated group for this gene."
+        )
+    return GeneMutationSurvivalAnalysis(
+        study_id=study_id,
+        gene_symbol=genes.genes[0].hugo_gene_symbol,
+        survival_time_attribute=time_attribute,
+        survival_status_attribute=status_attribute,
+        minimum_group_size=MIN_SURVIVAL_GROUP_SIZE,
+        analysis_mode="aggregated_mutated",
+        analyses=[analysis_for("all_mutations", all_mutated_patient_ids)],
     )

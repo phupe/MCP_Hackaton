@@ -1,6 +1,6 @@
 """Protocol-visible response models for cBioPortal MCP tools."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -114,3 +114,13 @@ class MutationSurvivalAnalysis(BaseModel):
     log_rank_p_value: float | None = None
     conclusion: str
     mutation_patient_ids: list[str]
+
+
+class GeneMutationSurvivalAnalysis(BaseModel):
+    study_id: str
+    gene_symbol: str
+    survival_time_attribute: str
+    survival_status_attribute: str
+    minimum_group_size: int
+    analysis_mode: Literal["per_mutation", "aggregated_mutated"]
+    analyses: list[MutationSurvivalAnalysis]
