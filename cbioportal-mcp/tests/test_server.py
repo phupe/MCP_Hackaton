@@ -51,6 +51,29 @@ async def test_list_studies_returns_normalized_studies(client: Client, monkeypat
 
 
 @pytest.mark.anyio
+async def test_search_studies_adds_filters(client: Client, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
+        assert (method, path) == ("GET", "/studies")
+        assert kwargs["params"] == {
+            "pageNumber": 0,
+            "pageSize": 25,
+            "projection": "SUMMARY",
+            "sortBy": "name",
+            "direction": "ASC",
+            "keyword": "BRCA1",
+            "cancerTypeId": "nbl",
+        }
+        return [{"studyId": "nbl_a", "name": "Pediatric Neuroblastoma", "allSampleCount": 2}]
+
+    monkeypatch.setattr(server, "_request", fake_request)
+    result = await client.call_tool(
+        "search_studies", {"keyword": "BRCA1", "cancer_type_id": "nbl", "filter_text": "pediatric"}
+    )
+
+    assert result.structured_content["studies"][0]["study_id"] == "nbl_a"
+
+
+@pytest.mark.anyio
 async def test_lookup_genes_uses_hugo_symbols(client: Client, monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_request(method: str, path: str, **kwargs: object) -> list[dict[str, object]]:
         assert (method, path) == ("GET", "/genes")

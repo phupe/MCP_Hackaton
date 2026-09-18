@@ -1,9 +1,8 @@
 """Read-only MCP server for the public cBioPortal REST API."""
 
-from __future__ import annotations
-
 import logging
 import os
+import asyncio
 from typing import Annotated, Any
 from urllib.parse import quote
 
@@ -25,7 +24,9 @@ mcp = MCPServer(
     "cBioPortal Public Data",
     instructions=(
         "Read-only tools for the public cBioPortal REST API. First use list_studies to find "
-        "a study, then get_study_data_catalog to select a molecular profile and sample list. "
+        "or search_studies to find a study, then get_study_data_catalog to select a molecular "
+        "profile and sample list. Use fetch_mutations_by_study or find_gene_alterations for "
+        "bounded gene-centric mutation searches. "
         "Use lookup_genes to turn Hugo gene symbols into Entrez IDs before fetch_mutations. "
         "The server queries public cBioPortal data live and does not modify portal data."
     ),
@@ -116,6 +117,57 @@ async def list_studies(
     return StudyList(page_number=page_number, page_size=page_size, studies=[_study(item) for item in data])
 
 
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True))
+async def search_studies(
+    keyword: Annotated[
+        str | None,
+        Field(description="Optional text passed to cBioPortal's study search."),
+    ] = None,
+    cancer_type_id: Annotated[
+        str | None,
+        Field(description="Optional cBioPortal cancer type ID, for example nbl or aml."),
+    ] = None,
+    filter_text: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Optional case-insensitive text filter applied locally to study ID, name, "
+                "description, and cancer type ID."
+            )
+        ),
+    ] = None,
+    page_number: Annotated[int, Field(ge=0, description="Zero-based page number.")] = 0,
+    page_size: Annotated[
+        int, Field(ge=1, le=MAX_PAGE_SIZE, description="Number of public studies to return.")
+    ] = 25,
+) -> StudyList:
+    """Search public studies by keyword, cancer type, or pediatric focus."""
+    params: dict[str, Any] = {
+        "pageNumber": page_number,
+        "pageSize": page_size,
+        "projection": "SUMMARY",
+        "sortBy": "name",
+        "direction": "ASC",
+    }
+    if keyword and keyword.strip():
+        params["keyword"] = keyword.strip()
+    if cancer_type_id and cancer_type_id.strip():
+        params["cancerTypeId"] = cancer_type_id.strip()
+    data = await _request("GET", "/studies", params=params)
+    if filter_text and filter_text.strip():
+        normalized_filter = filter_text.strip().casefold()
+        data = [
+            item
+            for item in data
+            if normalized_filter
+            in " ".join(
+                str(item.get(field, "")).casefold()
+                for field in ("studyId", "name", "description", "cancerTypeId")
+            )
+        ]
+    return StudyList(page_number=page_number, page_size=page_size, studies=[_study(item) for item in data])
+
+
 class MolecularProfile(BaseModel):
     molecular_profile_id: str
     name: str
@@ -143,12 +195,10 @@ async def get_study_data_catalog(
 ) -> StudyDataCatalog:
     """Get a study plus its molecular profiles and sample lists for choosing data to query."""
     encoded_study_id = quote(study_id, safe="")
-    study_data, profiles, sample_lists = await _request(
-        "GET", f"/studies/{encoded_study_id}", params={"projection": "SUMMARY"}
-    ), await _request(
-        "GET", f"/studies/{encoded_study_id}/molecular-profiles", params={"projection": "SUMMARY"}
-    ), await _request(
-        "GET", f"/studies/{encoded_study_id}/sample-lists", params={"projection": "SUMMARY"}
+    study_data, profiles, sample_lists = await asyncio.gather(
+        _request("GET", f"/studies/{encoded_study_id}", params={"projection": "SUMMARY"}),
+        _request("GET", f"/studies/{encoded_study_id}/molecular-profiles", params={"projection": "SUMMARY"}),
+        _request("GET", f"/studies/{encoded_study_id}/sample-lists", params={"projection": "SUMMARY"}),
     )
     return StudyDataCatalog(
         study=_study(study_data),
@@ -238,14 +288,16 @@ async def lookup_genes(
 ) -> GeneLookup:
     """Look up Hugo gene symbols and return the Entrez IDs needed for molecular-data queries."""
     normalized_symbols = [symbol.strip().upper() for symbol in symbols]
-    data: list[dict[str, Any]] = []
-    for symbol in normalized_symbols:
+    async def lookup(symbol: str) -> list[dict[str, Any]]:
         matches = await _request(
             "GET",
             "/genes",
             params={"keyword": symbol, "pageNumber": 0, "pageSize": 100, "projection": "SUMMARY"},
         )
-        data.extend(item for item in matches if item.get("hugoGeneSymbol", "").upper() == symbol)
+        return [item for item in matches if item.get("hugoGeneSymbol", "").upper() == symbol]
+
+    matches_by_symbol = await asyncio.gather(*(lookup(symbol) for symbol in dict.fromkeys(normalized_symbols)))
+    data = [item for matches in matches_by_symbol for item in matches]
     return GeneLookup(
         requested_symbols=normalized_symbols,
         genes=[
@@ -264,6 +316,98 @@ class MutationQueryResult(BaseModel):
     sample_ids: list[str]
     entrez_gene_ids: list[int]
     mutations: list[dict[str, Any]]
+
+
+class StudyAlterationResult(BaseModel):
+    study: Study
+    molecular_profile_id: str | None = None
+    sample_list_id: str | None = None
+    genes: list[Gene]
+    mutations: list[dict[str, Any]]
+
+
+async def _mutation_profile_and_samples(study_id: str) -> tuple[Study, str | None, str | None]:
+    catalog = await get_study_data_catalog(study_id)
+    profile = next(
+        (
+            item.molecular_profile_id
+            for item in catalog.molecular_profiles
+            if item.molecular_alteration_type == "MUTATION_EXTENDED"
+        ),
+        None,
+    )
+    sample_list = next(
+        (
+            item.sample_list_id
+            for item in catalog.sample_lists
+            if "mutation" in f"{item.name} {item.description or ''}".lower()
+            or item.sample_list_id.endswith("_sequenced")
+        ),
+        None,
+    )
+    return catalog.study, profile, sample_list
+
+
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True))
+async def fetch_mutations_by_study(
+    study_id: Annotated[str, Field(min_length=1, description="cBioPortal study ID.")],
+    gene_symbols: Annotated[
+        list[Annotated[str, Field(min_length=1)]],
+        Field(min_length=1, max_length=MAX_MUTATION_GENES, description="Hugo gene symbols, e.g. ['BRCA1']."),
+    ],
+    max_samples: Annotated[
+        int, Field(ge=1, le=MAX_MUTATION_SAMPLES, description="Maximum samples queried from the study.")
+    ] = MAX_MUTATION_SAMPLES,
+) -> StudyAlterationResult:
+    """Find mutations for gene symbols in one study without manually discovering profile or sample IDs."""
+    study, profile_id, sample_list_id = await _mutation_profile_and_samples(study_id)
+    genes = await lookup_genes(gene_symbols)
+    if profile_id is None or sample_list_id is None or not genes:
+        return StudyAlterationResult(
+            study=study,
+            molecular_profile_id=profile_id,
+            sample_list_id=sample_list_id,
+            genes=genes.genes,
+            mutations=[],
+        )
+    samples = await list_study_samples(study_id, page_size=max_samples)
+    mutations = await fetch_mutations(
+        profile_id,
+        [sample.sample_id for sample in samples.samples],
+        [gene.entrez_gene_id for gene in genes.genes],
+    )
+    return StudyAlterationResult(
+        study=study,
+        molecular_profile_id=profile_id,
+        sample_list_id=sample_list_id,
+        genes=genes.genes,
+        mutations=mutations.mutations,
+    )
+
+
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True))
+async def find_gene_alterations(
+    study_ids: Annotated[
+        list[Annotated[str, Field(min_length=1)]],
+        Field(min_length=1, max_length=25, description="cBioPortal study IDs to scan."),
+    ],
+    gene_symbols: Annotated[
+        list[Annotated[str, Field(min_length=1)]],
+        Field(min_length=1, max_length=MAX_MUTATION_GENES, description="Hugo gene symbols."),
+    ],
+    max_samples_per_study: Annotated[
+        int, Field(ge=1, le=MAX_MUTATION_SAMPLES, description="Maximum samples queried per study.")
+    ] = MAX_MUTATION_SAMPLES,
+) -> list[StudyAlterationResult]:
+    """Scan bounded pediatric or cancer studies for gene mutations, grouped by study."""
+    return list(
+        await asyncio.gather(
+            *(
+                fetch_mutations_by_study(study_id, gene_symbols, max_samples_per_study)
+                for study_id in dict.fromkeys(study_ids)
+            )
+        )
+    )
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True))
